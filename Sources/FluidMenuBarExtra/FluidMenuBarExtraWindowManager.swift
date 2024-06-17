@@ -12,15 +12,12 @@ import SwiftUI
 /// An individual element displayed in the system menu bar that displays a window when triggered.
 public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, ObservableObject {
     
-    private var mainWindow: NSWindow!
-    private var subWindow: NSWindow?
+    private var mainWindow: ModernMenuBarExtraWindow!
     
-    private var currentHoverId: String?
-    
-    public var hoverManager: SubWindowSelectionManager?
+   
     
     private var subWindowMonitor: Any?
-    private var mainWindowVisible = false
+
     
     public var currentSubwindowDelegate: SubwindowDelegate?
     public let statusItem: NSStatusItem
@@ -29,17 +26,14 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     private var globalEventMonitor: EventMonitor?
     private var mouseMonitor: EventMonitor?
 
-    private var openSubwindowWorkItem: DispatchWorkItem?
-    private var closeSubwindowWorkItem: DispatchWorkItem?
+    private var mainWindowVisible = false
     
-    private var latestSubwindowPoint: CGPoint?
-    
-    private var subwindowHovering = false
+  
+    public let speedCalculator = MouseSpeedCalculator()
 
     var sessionID = UUID()
     
-    private var subwindowViews = [String:AnyView]()
-    private var subwindowPositions = [String:CGPoint]()
+    var latestCursorPosition: NSPoint?
 
     private init(title: String, @ViewBuilder windowContent: @escaping () -> AnyView) {
         
@@ -51,8 +45,10 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
         
         super.init()
         
-        let window = FluidMenuBarExtraWindow(title: title, windowManager: self, content: windowContent)
+        let window = ModernMenuBarExtraWindow(title: title, content: windowContent)
         self.mainWindow = window
+        
+        window.windowManager = self
         
         self.setWindowPosition(window)
         
@@ -90,9 +86,8 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     }
 
     private func didPressStatusBarButton(_ sender: NSStatusBarButton) {
-        if mainWindowVisible {
-            dismissWindow(subWindow)
-            dismissWindow(mainWindow)
+        if mainWindowVisible || mainWindow.isVisible {
+            dismissWindows()
             return
         }
        
@@ -110,49 +105,68 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
             mouseMonitor?.start()
             setButtonHighlighted(to: true)
         }
+        
+        
+       
     }
     
     public func windowDidResignKey(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow else { return }
-        if window == mainWindow {
-            if let subWindow = self.subWindow, subWindow.isVisible {
-                dismissWindow(subWindow)
-                closeSubwindow()
+       // guard let window = notification.object as? NSWindow else { return }
+       
+       // print("Resign key")
+        
+        DispatchQueue.main.async { [self] in
+            
+            if !mainWindow.isWindowOrSubwindowKey() {
+               // print("Found key window")
+                dismissWindows()
+                mainWindowVisible = false
+                globalEventMonitor?.stop()
             }
-            dismissWindow(mainWindow)
-            mainWindowVisible = false
-            globalEventMonitor?.stop()
-        } else if window == subWindow {
-            dismissWindow(subWindow)
-            closeSubwindow()
+            
+            
         }
+           
+           
+        
     }
     
-    private func dismissWindow(_ window: NSWindow?) {
-        guard let window = window else { return }
+    private func dismissWindow(window: NSWindow) {
         
-        if !window.isVisible {
-            window.close()
-        }
+        
+        if !window.isVisible { window.close() }
         
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.3
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             window.animator().alphaValue = 0
         } completionHandler: { [weak self] in
-            
-            if window == self?.subWindow {
-                //print("SWH 1")
-                self?.hoverManager?.setWindowHovering(false, id: self?.currentHoverId)
-            }
-            
             window.close()
             window.alphaValue = 1
-            if let self = self, !self.mainWindow.isVisible {
-                self.setButtonHighlighted(to: false)
-                DistributedNotificationCenter.default().post(name: .endMenuTracking, object: nil)
+            
+            if window == self?.mainWindow {
+                
+                DispatchQueue.main.async {
+                    DistributedNotificationCenter.default().post(name: .endMenuTracking, object: nil)
+                    self?.setButtonHighlighted(to: false)
+                    
+                }
             }
+            
         }
+        
+    }
+    
+    private func dismissWindows() {
+     
+        let all = mainWindow.getSelfAndSubwindows()
+        
+        for window in all {
+            dismissWindow(window: window)
+        }
+        
+        
+        
     }
 
     private func setButtonHighlighted(to highlight: Bool) {
@@ -182,141 +196,63 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
         window.setFrameTopLeftPoint(targetRect.origin)
     }
 
-    private var subwindowID = UUID()
-
-    
-    public func registerSubwindowView(view: AnyView, for id: String) {
-        subwindowViews[id] = view
-    }
-    
-    public func registerSubwindowButtonPosition(point: CGPoint, for id: String) {
-        subwindowPositions[id] = point
-    }
-    
-    public func openSubWindow(id: String) {
-        //print("HLD: Open subwindow with \(id)")
+ 
+    func updateSubwindowPosition(window: ModernMenuBarExtraWindow) {
         
-      //  //print("Open subwindow \(id) ")
+       
+        guard let parent = window.parent as? ModernMenuBarExtraWindow  else { return }
+        guard let point = parent.latestSubwindowPoint else { return }
         
-        closeSubwindowWorkItem?.cancel()
-        openSubwindowWorkItem?.cancel()
-        
-        if mainWindowVisible == false { return }
-        
-        var possibleItem: DispatchWorkItem?
-        let item = DispatchWorkItem { [self] in
-           
-            guard let view = subwindowViews[id] else { return }
-            guard let pos = subwindowPositions[id] else { return }
-            
-            if mainWindowVisible == false {
-                return
-            }
-            
-            if let possibleItem, possibleItem.isCancelled {
-                return
-            }
-
-            self.latestSubwindowPoint = pos
-            subWindow?.close()
-            subWindow = nil
-            
-            let w = FluidMenuBarExtraWindow(title: "Window", windowManager: self, content: { AnyView(view) })
-            w.delegate = self
-            w.isSecondary = true
-            w.isReleasedWhenClosed = false
-            
-            if !(possibleItem?.isCancelled ?? false) {
-                subWindow = w
-                
-                self.currentHoverId = id
-                self.subwindowID = UUID()
-                //print("SWH 2 \(id)")
-                hoverManager?.setWindowHovering(true, id: id)
-                subWindow?.orderFrontRegardless()
-            }
-        }
-        
-        possibleItem = item
-        self.openSubwindowWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: item)
-    }
-    
-    func mouseMoved(event: NSEvent) {
-        DispatchQueue.main.async { [self] in
-          
-            
-            let cursorPosition = NSEvent.mouseLocation
-            
-            if let window = self.subWindow {
-                subwindowHovering = window.isMouseInside(mouseLocation: cursorPosition, tolerance: 3)
-                
-                if subwindowHovering {
-                    //print("SWH 3")
-                    hoverManager!.setWindowHovering(true, id: currentHoverId)
-                    closeSubwindowWorkItem?.cancel()
-                } else {
-                    if !mainWindow.isMouseInside(mouseLocation: cursorPosition, tolerance: 30) {
-                        
-                        closeSubwindow()
-                    }
-                }
-            }
-        }
-    }
-
-    func updateSubwindowPosition() {
-        guard let subWindow = subWindow else { return }
-        guard let point = latestSubwindowPoint else { return }
-            
-        let subWindowFrame = subWindow.frame
-        let mainWindowFrame = mainWindow.frame
+        let subWindowFrame = window.frame
+        let mainWindowFrame = parent.frame
         
         let adjustedPoint = CGPoint(
             x: mainWindowFrame.minX - subWindowFrame.width + 10,
             y: mainWindowFrame.origin.y + mainWindowFrame.height - point.y
         )
 
-        subWindow.setFrameTopLeftPoint(adjustedPoint)
-        mainWindow.addChildWindow(subWindow, ordered: .above)
+        window.setFrameTopLeftPoint(adjustedPoint)
+        parent.addChildWindow(window, ordered: .above)
     }
     
     public func windowDidResize(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow else { return }
-        guard window == subWindow else { return }
+        //print("Window did resize")
+        guard let window = notification.object as? ModernMenuBarExtraWindow else { return }
+        guard window.isSubwindow else { return }
+        //print("Window did Resized window was subwindow")
         
-        if mainWindow.frame.width < 1 { return }
+        if window.frame.width < 1 { return }
         
-        updateSubwindowPosition()
-    }
-
-    public func closeSubwindow(force: Bool = false, notify: Bool = true) {
-        let id = subwindowID
-        
-        openSubwindowWorkItem?.cancel()
-        
-        let item = DispatchWorkItem { [self] in
-            if id != subwindowID {
-                return
-            }
-            
-            if !subwindowHovering || force {
-                //print("SWH 4")
-                if notify {
-                    hoverManager?.setWindowHovering(false, id: currentHoverId)
-                }
-               
-                
-                subWindow?.orderOut(nil)
-                subWindow?.close()
-                subWindow = nil
-            }
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.0, execute: item)
+        updateSubwindowPosition(window: window)
     }
     
+    let queue = DispatchQueue(label: "MouseMovedQueue")
+   
+    func mouseMoved(event: NSEvent) {
+       
+        //print("Mouse moved")
+        
+        let cursorPosition = NSEvent.mouseLocation
+            
+       
+        
+       // speedCalculator.updateSpeed(with: event)
+            
+            
+        queue.sync {
+            
+            self.latestCursorPosition = cursorPosition
+            self.mainWindow?.mouseMoved(to: cursorPosition)
+            
+        }
+            
+        
+        
+    }
+    
+    
     public func windowWillClose(_ notification: Notification) {}
+    
 }
 
 public extension FluidMenuBarExtraWindowManager {
@@ -355,12 +291,16 @@ extension NSWindow {
     func isMouseInside(mouseLocation: NSPoint, tolerance: CGFloat) -> Bool {
         var windowFrame = self.frame
         windowFrame.size.width += tolerance
-        return windowFrame.contains(mouseLocation)
+        let result = windowFrame.contains(mouseLocation)
+        
+        return result
     }
 }
 
 public protocol SubWindowSelectionManager {
     func setWindowHovering(_ hovering: Bool, id: String?)
+    
+    var latestMenuHoverId: String? { get set }
 }
 
 // Helper methods to setup event monitors
