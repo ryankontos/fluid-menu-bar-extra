@@ -106,7 +106,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     private func configureWindow() {
         isMovable = false
         isMovableByWindowBackground = false
-        isFloatingPanel = false
+        isFloatingPanel = true
         level = .statusBar
         isOpaque = false
         titleVisibility = .hidden
@@ -114,7 +114,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         animationBehavior = .none
         
         if #available(macOS 13.0, *) {
-            collectionBehavior = [.auxiliary, .stationary, .moveToActiveSpace, .fullScreenAuxiliary]
+            collectionBehavior = [.auxiliary, .stationary, .moveToActiveSpace, .fullScreenAuxiliary, .transient]
         } else {
             collectionBehavior = [.stationary, .moveToActiveSpace, .fullScreenAuxiliary]
         }
