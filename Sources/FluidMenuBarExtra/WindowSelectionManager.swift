@@ -31,7 +31,7 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     private var selectFromHoverWorkItem: DispatchWorkItem?
     private var setHoverWorkItem: DispatchWorkItem?
     
-    public weak var submenuManager: ModernMenuBarExtraWindow?
+    public weak var submenuManager: FMBEWindowProxy?
     
     @Published public var clickID: String?
     
@@ -143,11 +143,11 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     
     
     private func handleSelectionChange(oldValue: String?, newValue: String?) {
-        submenuManager?.closeSubwindow(notify: false) // Do not notify self (Because we already know!)
+        submenuManager?.window?.closeSubwindow(notify: false) // Do not notify self (Because we already know!)
         
         
         if let newValue = newValue {
-            submenuManager?.openSubWindow(id: newValue)
+            submenuManager?.window?.openSubWindow(id: newValue)
         }
    
         if lastSelectWasByKey {

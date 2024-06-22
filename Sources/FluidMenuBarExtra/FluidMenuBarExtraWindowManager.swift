@@ -16,10 +16,10 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     
    
     
-    private var subWindowMonitor: Any?
+    private weak var subWindowMonitor: AnyObject?
 
     
-    public var currentSubwindowDelegate: SubwindowDelegate?
+    public weak var currentSubwindowDelegate: SubwindowDelegate?
     public let statusItem: NSStatusItem
 
     private var localEventMonitor: EventMonitor?
@@ -131,18 +131,18 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
         
     }
     
-    private func dismissWindow(window: NSWindow) {
+    private func dismissWindow(window: NSWindow?) {
         
         
-        if !window.isVisible { window.close() }
+       // if !window?.isVisible { window?.close() }
         
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.3
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            window.animator().alphaValue = 0
+            window?.animator().alphaValue = 0
         } completionHandler: { [weak self] in
-            window.close()
-            window.alphaValue = 1
+            window?.close()
+            window?.alphaValue = 1
             
             if window == self?.mainWindow {
                 
@@ -283,7 +283,7 @@ public enum Metrics {
     static let windowBorderSize: CGFloat = 2
 }
 
-public protocol SubwindowDelegate {
+public protocol SubwindowDelegate: AnyObject {
     func mouseExitedSubwindow()
 }
 
@@ -297,7 +297,7 @@ extension NSWindow {
     }
 }
 
-public protocol SubWindowSelectionManager {
+public protocol SubWindowSelectionManager: AnyObject {
     func setWindowHovering(_ hovering: Bool, id: String?)
     
     var latestMenuHoverId: String? { get set }

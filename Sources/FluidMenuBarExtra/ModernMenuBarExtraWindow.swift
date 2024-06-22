@@ -17,9 +17,9 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     // MARK: - Properties
     
-    public weak var subWindow: ModernMenuBarExtraWindow?
+    public var subWindow: ModernMenuBarExtraWindow?
     public var currentHoverId: String?
-    public var hoverManager: SubWindowSelectionManager?
+    public weak var hoverManager: SubWindowSelectionManager?
     
     private var mainWindowVisible = false
     private var subwindowID = UUID()
@@ -32,10 +32,12 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     public var latestSubwindowPoint: CGPoint?
     private var subwindowHovering = false
     
+    public lazy var proxy = FMBEWindowProxy(window: self)
+    
     public let isSubwindow: Bool
     @Published var mouseHovering = false
     
-    public var windowManager: FluidMenuBarExtraWindowManager?
+    public weak var windowManager: FluidMenuBarExtraWindowManager?
     
     var resize = true {
         didSet {
@@ -66,7 +68,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     private var rootView: AnyView {
         AnyView(
             content()
-                .environmentObject(self)
+                .environmentObject(self.proxy)
                 .modifier(RootViewModifier(windowTitle: title))
                 .onSizeUpdate { [weak self] size in
                     self?.latestCGSize = size
@@ -91,6 +93,8 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
             backing: .buffered,
             defer: false
         )
+        
+       
         
         self.title = title
         self.delegate = self
@@ -194,25 +198,29 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         openSubwindowWorkItem?.cancel()
         
         var possibleItem: DispatchWorkItem?
-        let item = DispatchWorkItem { [self] in
-            guard let view = subwindowViews[id], let pos = subwindowPositions[id] else { return }
-            if let possibleItem, possibleItem.isCancelled { return }
+        let item = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            guard let view = self.subwindowViews[id], let pos = self.subwindowPositions[id] else { return }
+            if let possibleItem = possibleItem, possibleItem.isCancelled { return }
             
             self.latestSubwindowPoint = pos
-            subWindow?.close()
-            subWindow = nil
+            self.subWindow?.close()
             
-            let subWindow = ModernMenuBarExtraWindow(title: "Window", isSubWindow: true, content: { AnyView(view) })
-            subWindow.isReleasedWhenClosed = true
-            subWindow.delegate = self.delegate
-            subWindow.windowManager = self.windowManager
+            self.subWindow = nil
+                self.subWindow = ModernMenuBarExtraWindow(title: "Window", isSubWindow: true, content: { AnyView(view) })
+                self.addChildWindow(self.subWindow!, ordered: .above)
+            
+            
+            self.subWindow?.isReleasedWhenClosed = false
+            self.subWindow?.delegate = self.delegate
+            self.subWindow?.windowManager = self.windowManager
             
             if !(possibleItem?.isCancelled ?? false) {
-                self.subWindow = subWindow
+                self.subWindow = self.subWindow
                 self.currentHoverId = id
                 self.subwindowID = UUID()
-                self.addChildWindow(subWindow, ordered: .above)
-                subWindow.orderFrontRegardless()
+                
+                self.subWindow?.orderFrontRegardless()
             }
         }
         
@@ -231,29 +239,33 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         if id == currentHoverId {
             self.closeSubwindow()
         }
-        
-        
-        
     }
     
     override public func close() {
+        print("Close me")
         closeSubwindow()
+        subwindowViews.removeAll()
+        subwindowPositions.removeAll()
         super.close()
     }
     
     public func closeSubwindow(notify: Bool = true) {
+        print("Close my subwindow")
         let id = subwindowID
         openSubwindowWorkItem?.cancel()
         
-        let item = DispatchWorkItem { [self] in
-            if id != subwindowID { return }
-            if !subwindowHovering {
+        let item = DispatchWorkItem { [weak self] in
+           
+            print("Running closeSubwindowWorkItem")
+            
+            if id != self?.subwindowID { return }
+            if !(self?.subwindowHovering ?? false) {
                 if notify {
-                    hoverManager?.setWindowHovering(false, id: currentHoverId)
+                    self?.hoverManager?.setWindowHovering(false, id: self?.currentHoverId)
                 }
-                subWindow?.orderOut(nil)
-                subWindow?.close()
-                subWindow = nil
+                self?.subWindow?.orderOut(nil)
+                self?.subWindow?.close()
+                self?.subWindow = nil
             }
         }
         
@@ -264,12 +276,10 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     // MARK: - Mouse Handling
     
     func mouseMoved(to cursorPosition: NSPoint) {
-        
         let cursorInSelf = self.isMouseInside(mouseLocation: cursorPosition, tolerance: 2)
         
-        if cursorInSelf {
+        if (cursorInSelf) {
             activateWindow()
-            
         }
         
         if let window = self.subWindow {
@@ -293,6 +303,10 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         return self.isKeyWindow && self.isVisible
     }
     
+    
+    public func windowWillClose(_ notification: Notification) {
+       
+    }
     func isCursorInSelfOrSubwindows(cursorPosition: NSPoint) -> Bool {
         if isMouseInside(mouseLocation: cursorPosition, tolerance: 0) {
             activateWindow()
@@ -318,13 +332,25 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     func activateWindow() {
-        
         if !self.isKeyWindow {
             self.makeKey()
             self.makeFirstResponder(self)
             self.setForceHover(false)
         }
-        
     }
+    
+    deinit {
+        print("Deinit window")
+       // subwindowViews.removeAll()
+    }
+}
+
+public class FMBEWindowProxy: ObservableObject {
+    
+    init(window: ModernMenuBarExtraWindow) {
+        self.window = window
+    }
+    
+    weak public var window: ModernMenuBarExtraWindow?
     
 }
