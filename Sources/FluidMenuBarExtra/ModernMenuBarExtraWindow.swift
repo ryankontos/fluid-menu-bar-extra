@@ -32,7 +32,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     public var latestSubwindowPoint: CGPoint?
     private var subwindowHovering = false
     
-    public lazy var proxy = FMBEWindowProxy(window: self)
+    public var proxy: FMBEWindowProxy! = FMBEWindowProxy()
     
     public let isSubwindow: Bool
     @Published var mouseHovering = false
@@ -95,6 +95,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         )
         
        
+        self.proxy?.window = self
         
         self.title = title
         self.delegate = self
@@ -242,7 +243,6 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     override public func close() {
-        print("Close me")
         closeSubwindow()
         subwindowViews.removeAll()
         subwindowPositions.removeAll()
@@ -250,14 +250,13 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     public func closeSubwindow(notify: Bool = true) {
-        print("Close my subwindow")
+
         let id = subwindowID
         openSubwindowWorkItem?.cancel()
         
         let item = DispatchWorkItem { [weak self] in
            
-            print("Running closeSubwindowWorkItem")
-            
+
             if id != self?.subwindowID { return }
             if !(self?.subwindowHovering ?? false) {
                 if notify {
@@ -340,16 +339,12 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     deinit {
-        print("Deinit window")
-       // subwindowViews.removeAll()
+        self.proxy = nil
+
     }
 }
 
 public class FMBEWindowProxy: ObservableObject {
-    
-    init(window: ModernMenuBarExtraWindow) {
-        self.window = window
-    }
     
     weak public var window: ModernMenuBarExtraWindow?
     

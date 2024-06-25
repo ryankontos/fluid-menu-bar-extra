@@ -8,20 +8,26 @@
 
 import AppKit
 import SwiftUI
+import Combine
 
 /// An individual element displayed in the system menu bar that displays a window when triggered.
 public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, ObservableObject {
     
     private var mainWindow: ModernMenuBarExtraWindow!
     
-   
+    
     
     private weak var subWindowMonitor: AnyObject?
 
     
     public weak var currentSubwindowDelegate: SubwindowDelegate?
-    public let statusItem: NSStatusItem
+    
+    private var statusItemHostingView: NSHostingView<StatusItemRootView>?
+    public var statusItem: NSStatusItem!
 
+    private var sizePassthrough = PassthroughSubject<CGSize, Never>()
+    private var sizeCancellable: AnyCancellable?
+    
     private var localEventMonitor: EventMonitor?
     private var globalEventMonitor: EventMonitor?
     private var mouseMonitor: EventMonitor?
@@ -35,15 +41,43 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     
     var latestCursorPosition: NSPoint?
 
-    private init(title: String, @ViewBuilder windowContent: @escaping () -> AnyView) {
+    public func destroy() {
         
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        self.statusItem.isVisible = true
+        print("Destorying item")
         
-        statusItem.button?.title = title
-        statusItem.button?.setAccessibilityTitle(title)
+        mainWindow = nil
+        statusItem = nil
+        
+    }
+    
+    public init(title: String, @ViewBuilder windowContent: @escaping () -> AnyView, @ViewBuilder statusItemContent: @escaping () -> AnyView) {
         
         super.init()
+        
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.isVisible = true
+        
+        //statusItem.button?.title = title
+        //statusItem.button?.setAccessibilityTitle(title)
+        
+        let siHostingView = NSHostingView(rootView: StatusItemRootView(sizePassthrough: sizePassthrough, mainContent: {
+            statusItemContent()
+        }))
+        siHostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 24)
+                statusItem.button?.frame = siHostingView.frame
+                statusItem.button?.addSubview(siHostingView)
+        
+        
+        self.statusItem = statusItem
+        self.statusItemHostingView = siHostingView
+        
+        sizeCancellable = sizePassthrough.sink { [weak self] size in
+                   let frame = NSRect(origin: .zero, size: .init(width: size.width, height: 24))
+                   self?.statusItemHostingView?.frame = frame
+                   self?.statusItem?.button?.frame = frame
+               }
+        
+       
         
         let window = ModernMenuBarExtraWindow(title: title, content: windowContent)
         self.mainWindow = window
@@ -53,6 +87,8 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
         self.setWindowPosition(window)
         
         setupEventMonitors()
+        
+        
         
         window.delegate = self
     }
@@ -255,24 +291,7 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     
 }
 
-public extension FluidMenuBarExtraWindowManager {
-    convenience init(title: String, @ViewBuilder content: @escaping () -> AnyView) {
-        self.init(title: title, windowContent: content)
-        statusItem.button?.setAccessibilityTitle(title)
-    }
 
-    convenience init(title: String, image: String, @ViewBuilder content: @escaping () -> AnyView) {
-        self.init(title: title, windowContent: content)
-        statusItem.button?.setAccessibilityTitle(title)
-        statusItem.button?.image = NSImage(named: image)
-    }
-
-    convenience init(title: String, systemImage: String, @ViewBuilder content: @escaping () -> AnyView) {
-        self.init(title: title, windowContent: content)
-        statusItem.button?.setAccessibilityTitle(title)
-        statusItem.button?.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: title)
-    }
-}
 
 public extension Notification.Name {
     static let beginMenuTracking = Notification.Name("com.apple.HIToolbox.beginMenuTrackingNotification")
@@ -305,10 +324,14 @@ public protocol SubWindowSelectionManager: AnyObject {
 
 // Helper methods to setup event monitors
 private extension FluidMenuBarExtraWindowManager {
+    
+   
+    
     func setupEventMonitors() {
         localEventMonitor = LocalEventMonitor(mask: [.leftMouseDown]) { [weak self] event in
             guard let self = self else { return event }
-            if let button = self.statusItem.button, event.window == button.window, !event.modifierFlags.contains(.command) {
+            guard let statusItem = self.statusItem else { return event }
+            if let button = statusItem.button, event.window == button.window, !event.modifierFlags.contains(.command) {
                 self.didPressStatusBarButton(button)
                 return nil
             }
@@ -317,8 +340,9 @@ private extension FluidMenuBarExtraWindowManager {
 
         globalEventMonitor = GlobalEventMonitor(mask: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self else { return }
-            if self.mainWindow.isKeyWindow {
-                self.mainWindow.resignKey()
+            guard let mainWindow else { return }
+            if mainWindow.isKeyWindow {
+                mainWindow.resignKey()
             }
         }
 

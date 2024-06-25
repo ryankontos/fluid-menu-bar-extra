@@ -33,6 +33,14 @@ import SwiftUI
 /// Instead, define state properties inside child views, or pass published properties from
 /// your application delegate to the child views using the `environmentObject`
 /// modifier.
+///
+///
+///
+///
+///
+
+/*
+
 public final class FluidMenuBarExtra {
     public let statusItem: FluidMenuBarExtraWindowManager
 
@@ -67,4 +75,9 @@ public final class FluidMenuBarExtra {
         statusItem.setImage(systemImageName: systemImageName, accessibilityDescription: accessibilityDescription)
     }
     
+    public func destroy() {
+        statusItem.destroy()
+    }
+    
 }
+ */
