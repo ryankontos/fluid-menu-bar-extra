@@ -49,7 +49,10 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
         selectFromHoverWorkItem?.cancel()
         setHoverWorkItem?.cancel()
         
-        let item = DispatchWorkItem { [self] in
+        let item = DispatchWorkItem { [weak self] in
+            
+            guard let self else { return }
+            
             if hovering {
                 selectID(id)
             } else if menuSelection == id {
@@ -75,8 +78,10 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
         
         selectFromHoverWorkItem?.cancel()
         
-        let item = DispatchWorkItem { [self] in
+        let item = DispatchWorkItem { [weak self] in
             
+            
+            guard let self else { return }
           
             latestHoverDate = Date()
             if let latestKeyDate = latestKeyDate, Date().timeIntervalSince(latestKeyDate) < 0.5 { return }
