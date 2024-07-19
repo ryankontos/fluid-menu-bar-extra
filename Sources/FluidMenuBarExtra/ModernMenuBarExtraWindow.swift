@@ -9,6 +9,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import os.log
 
 /// A custom window configured to behave as closely to an `NSMenu` as possible.
 /// `ModernMenuBarExtraWindow` listens for changes to the size of its content and
@@ -16,6 +17,8 @@ import Combine
 public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObject {
     
     // MARK: - Properties
+    
+    let logger: Logger
     
     public var subWindow: ModernMenuBarExtraWindow?
     public var currentHoverId: String?
@@ -86,6 +89,8 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     public init(contentRect: CGRect? = nil, title: String, isSubWindow isSub: Bool = false, content: @escaping () -> AnyView) {
         self.content = content
         self.isSubwindow = isSub
+        
+        self.logger = Logger(subsystem: "com.ryankontos.fluid-menu-bar-extra", category: "ModernMenuBarExtraWindow-\(title)")
         
         super.init(
             contentRect: contentRect ?? CGRect(x: 0, y: 0, width: 100, height: 100),
@@ -195,8 +200,19 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     // MARK: - Subwindow Management
     
     public func openSubWindow(id: String) {
+        
+        logger.debug("Open subwindow with id \(id)")
+        
+        if let subWindow = self.subWindow {
+            if subWindow.isVisible && subWindow.title == id {
+                return
+            }
+        }
+        
         closeSubwindowWorkItem?.cancel()
         openSubwindowWorkItem?.cancel()
+        
+        
         
         var possibleItem: DispatchWorkItem?
         let item = DispatchWorkItem { [weak self] in
@@ -208,7 +224,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
             self.subWindow?.close()
             
             self.subWindow = nil
-                self.subWindow = ModernMenuBarExtraWindow(title: "Window", isSubWindow: true, content: { AnyView(view) })
+                self.subWindow = ModernMenuBarExtraWindow(title: id, isSubWindow: true, content: { AnyView(view) })
                 self.addChildWindow(self.subWindow!, ordered: .above)
             
             
@@ -251,6 +267,8 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     public func closeSubwindow(notify: Bool = true) {
 
+        logger.debug("Close subwindow with notify \(notify)")
+        
         let id = subwindowID
         openSubwindowWorkItem?.cancel()
         
@@ -275,6 +293,9 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     // MARK: - Mouse Handling
     
     func mouseMoved(to cursorPosition: NSPoint) {
+        
+        hoverManager?.mouseMoved(point: cursorPosition)
+        
         let cursorInSelf = self.isMouseInside(mouseLocation: cursorPosition, tolerance: 2)
         
         if (cursorInSelf) {
@@ -292,6 +313,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     func setForceHover(_ force: Bool) {
+        logger.debug("Set force hover")
         hoverManager?.setWindowHovering(force, id: currentHoverId)
     }
     
