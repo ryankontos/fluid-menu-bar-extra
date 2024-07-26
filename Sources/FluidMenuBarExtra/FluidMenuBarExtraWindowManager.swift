@@ -13,7 +13,7 @@ import Combine
 /// An individual element displayed in the system menu bar that displays a window when triggered.
 public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, ObservableObject {
 
-    private var mainWindow: ModernMenuBarExtraWindow!
+    private var mainWindow: ModernMenuBarExtraWindow?
     private weak var subWindowMonitor: AnyObject?
     public weak var currentSubwindowDelegate: SubwindowDelegate?
     private var statusItemHostingView: NSHostingView<StatusItemRootView>?
@@ -27,13 +27,25 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     private var mouseWorkItem: DispatchWorkItem?
     private let mouseQueue = DispatchQueue(label: "com.ryankontos.fluidmenubarextra.mouseQueue")
     public let speedCalculator = MouseSpeedCalculator()
+    
+    let windowQueue = DispatchQueue(label: "FluidMenuBarExtraWindowManager.WindowQueue")
+    
+    private var hideStatusItemPending = false
+    
+    private let mainWindowContentGetter: () -> AnyView
+    
+    var title: String
     var sessionID = UUID()
     var latestCursorPosition: NSPoint?
     let queue = DispatchQueue(label: "MouseMovedQueue")
     private var workItem: DispatchWorkItem?
 
     public init(title: String, @ViewBuilder windowContent: @escaping () -> AnyView, @ViewBuilder statusItemContent: @escaping () -> AnyView) {
+        self.mainWindowContentGetter = windowContent
+        self.title = title
         super.init()
+        
+        setupEventMonitors()
 
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.isVisible = true
@@ -54,12 +66,21 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
             self?.statusItem?.button?.frame = frame
         }
 
-        let window = ModernMenuBarExtraWindow(title: title, content: windowContent)
+       
+    }
+    
+    func createMainWindow() {
+        
+        self.mainWindow?.close()
+        self.mainWindow = nil
+        
+        let window = ModernMenuBarExtraWindow(title: title, content: mainWindowContentGetter)
         self.mainWindow = window
         window.windowManager = self
-        self.setWindowPosition(window)
-        setupEventMonitors()
+       
+        
         window.delegate = self
+       
     }
 
     deinit {
@@ -72,6 +93,31 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
         statusItem = nil
     }
 
+    
+    public func setStatusItemVisible(_ visible: Bool) {
+        
+        if let mainWindow {
+            
+            if !visible && (mainWindowVisible || mainWindow.isVisible) {
+                hideStatusItemPending = true
+                return
+            }
+        }
+      
+        
+        statusItem.isVisible = visible
+        
+       
+        
+        
+    }
+    
+    private func updateStatusItemVisibility() {
+        
+        
+        
+    }
+    
     func setMonospacedFont() {
         if let button = statusItem.button {
             let currentFontSize = button.font?.pointSize ?? NSFont.systemFontSize
@@ -84,7 +130,8 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     func setTitle(newTitle: String?) {
         self.statusItem.button?.title = newTitle ?? ""
         DispatchQueue.main.async {
-            self.setWindowPosition(self.mainWindow)
+            guard let mainWindow = self.mainWindow else { return }
+            self.setWindowPosition(mainWindow)
         }
     }
 
@@ -97,17 +144,28 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     }
 
     private func didPressStatusBarButton(_ sender: NSStatusBarButton) {
-        if mainWindowVisible || mainWindow.isVisible {
-            dismissWindows()
-            return
+        
+        windowQueue.sync {
+            
+            if let mainWindow = mainWindow, mainWindowVisible, mainWindow.isVisible {
+                if mainWindowVisible || mainWindow.isVisible {
+                    dismissWindows()
+                    
+                }
+            } else {
+                setButtonHighlighted(to: true)
+                createMainWindow()
+                
+              
+               
+                
+                // setWindowPosition(mainWindow!)
+             
+            }
+            
         }
-
-        DistributedNotificationCenter.default().post(name: .beginMenuTracking, object: nil)
-
-        mainWindow.makeKeyAndOrderFront(nil)
-        mainWindowVisible = true
-        setWindowPosition(mainWindow)
     }
+
 
     public func windowDidBecomeKey(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
@@ -120,11 +178,23 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
 
     public func windowDidResignKey(_ notification: Notification) {
         DispatchQueue.main.async { [self] in
+            
+            guard let mainWindow else { return }
+            
             if !mainWindow.isWindowOrSubwindowKey() {
+              
                 dismissWindows()
                 mainWindowVisible = false
                 globalEventMonitor?.stop()
+                DistributedNotificationCenter.default().post(name: .endMenuTracking, object: nil)
             }
+            
+            if hideStatusItemPending {
+                hideStatusItemPending = false
+                statusItem.isVisible = false
+               
+            }
+            
         }
     }
 
@@ -137,23 +207,35 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
             window?.close()
             window?.alphaValue = 1
 
+            DistributedNotificationCenter.default().post(name: .endMenuTracking, object: nil)
             if window == self?.mainWindow {
+                
                 DispatchQueue.main.async {
-                    DistributedNotificationCenter.default().post(name: .endMenuTracking, object: nil)
+                   
                     self?.setButtonHighlighted(to: false)
+                    self?.mainWindow = nil
+                    DistributedNotificationCenter.default().post(name: .endMenuTracking, object: nil)
                 }
             }
         }
     }
 
     private func dismissWindows() {
+        
+        guard let mainWindow else { return }
+        
+        mainWindowVisible = false
+        
         let all = mainWindow.getSelfAndSubwindows()
         for window in all {
             dismissWindow(window: window)
         }
+   
+        
     }
 
     private func setButtonHighlighted(to highlight: Bool) {
+        print("Set button highlighted: \(highlight)")
         statusItem.button?.highlight(highlight)
     }
 
@@ -178,6 +260,11 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
             targetRect.origin.x -= Metrics.windowBorderSize
         }
         window.setFrameTopLeftPoint(targetRect.origin)
+        
+        window.makeKeyAndOrderFront(nil)
+        mainWindowVisible = true
+        DistributedNotificationCenter.default().post(name: .beginMenuTracking, object: nil)
+        
     }
 
     func updateSubwindowPosition(window: ModernMenuBarExtraWindow) {
@@ -198,17 +285,28 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
 
     public func windowDidResize(_ notification: Notification) {
         guard let window = notification.object as? ModernMenuBarExtraWindow else { return }
-        guard window.isSubwindow else { return }
-
-        if window.frame.width < 1 { return }
-
-        updateSubwindowPosition(window: window)
+        
+        
+        
+        if window.isSubwindow {
+            
+            if window.frame.width < 1 { return }
+            
+            updateSubwindowPosition(window: window)
+        } else if let mainWindow, window == mainWindow {
+            
+            setWindowPosition(mainWindow)
+            
+        }
+        
     }
 
     func mouseMoved(event: NSEvent) {
-        let cursorPosition = NSEvent.mouseLocation
-        self.latestCursorPosition = cursorPosition
-        self.mainWindow?.mouseMoved(to: cursorPosition)
+        DispatchQueue.main.async {
+            let cursorPosition = NSEvent.mouseLocation
+            self.latestCursorPosition = cursorPosition
+            self.mainWindow?.mouseMoved(to: cursorPosition)
+        }
     }
 
     public func windowWillClose(_ notification: Notification) {}

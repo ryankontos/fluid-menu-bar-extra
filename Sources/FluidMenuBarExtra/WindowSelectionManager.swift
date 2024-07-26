@@ -90,7 +90,7 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     
     public func setMenuItemHovering(id: String?, hovering: Bool) {
         
-        logger.debug("Set menu item hovering: \(hovering), id: \(id ?? "nil")")
+       // logger.debug("Set menu item hovering: \(hovering), id: \(id ?? "nil")")
         
         
         if id == nil && actualWindowHoverID != nil {
@@ -105,7 +105,7 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     
     private func selectID(_ idToSelect: String?) {
         
-        logger.debug("Select id: \(idToSelect ?? "nil")")
+        //logger.debug("Select id: \(idToSelect ?? "nil")")
         
    
         selectFromHoverWorkItem?.cancel()
@@ -122,7 +122,7 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
             
             
             
-            logger.debug("Menu selection is: \(menuSelection ?? "nil"), idToSelect is: \(idToSelect ?? "nil")")
+            //logger.debug("Menu selection is: \(menuSelection ?? "nil"), idToSelect is: \(idToSelect ?? "nil")")
             
             if menuSelection != idToSelect {
                 

@@ -115,6 +115,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     private func configureWindow() {
         isMovable = false
+      //  isReleasedWhenClosed = true
         isMovableByWindowBackground = false
         isFloatingPanel = true
         level = .statusBar
@@ -123,13 +124,14 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         titlebarAppearsTransparent = true
         animationBehavior = .none
         
+        
         if #available(macOS 13.0, *) {
             collectionBehavior = [.auxiliary, .stationary, .moveToActiveSpace, .fullScreenAuxiliary, .transient]
         } else {
             collectionBehavior = [.stationary, .moveToActiveSpace, .fullScreenAuxiliary]
         }
         
-        isReleasedWhenClosed = false
+        //isReleasedWhenClosed = true
         hidesOnDeactivate = false
         
         standardWindowButton(.closeButton)?.isHidden = true
@@ -361,6 +363,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     deinit {
+        print("Deinit window")
         self.proxy = nil
 
     }
