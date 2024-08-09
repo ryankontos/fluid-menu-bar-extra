@@ -203,7 +203,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     public func openSubWindow(id: String) {
         
-        logger.debug("Open subwindow with id \(id)")
+       // logger.debug("Open subwindow with id \(id)")
         
         if let subWindow = self.subWindow {
             if subWindow.isVisible && subWindow.title == id {
@@ -269,7 +269,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     public func closeSubwindow(notify: Bool = true) {
 
-        logger.debug("Close subwindow with notify \(notify)")
+
         
         let id = subwindowID
         openSubwindowWorkItem?.cancel()
@@ -315,7 +315,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     func setForceHover(_ force: Bool) {
-        logger.debug("Set force hover")
+       // logger.debug("Set force hover")
         hoverManager?.setWindowHovering(force, id: currentHoverId)
     }
     
@@ -363,7 +363,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     deinit {
-        print("Deinit window")
+
         self.proxy = nil
 
     }

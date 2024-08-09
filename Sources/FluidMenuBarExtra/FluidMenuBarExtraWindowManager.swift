@@ -235,7 +235,7 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     }
 
     private func setButtonHighlighted(to highlight: Bool) {
-        print("Set button highlighted: \(highlight)")
+        //print("Set button highlighted: \(highlight)")
         statusItem.button?.highlight(highlight)
     }
 

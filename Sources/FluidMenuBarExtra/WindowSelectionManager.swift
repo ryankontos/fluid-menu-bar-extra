@@ -56,14 +56,14 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     
     public func setWindowHovering(_ hovering: Bool, id: String?) {
         
-        logger.debug("Set window hovering: \(hovering), id: \(id ?? "nil")")
+       // logger.debug("Set window hovering: \(hovering), id: \(id ?? "nil")")
         
         selectFromHoverWorkItem?.cancel()
         setHoverWorkItem?.cancel()
         
         let item = DispatchWorkItem { [weak self] in
             
-            self?.logger.debug("Running set hover work item, id: \(id ?? "nil")")
+            //self?.logger.debug("Running set hover work item, id: \(id ?? "nil")")
             
             guard let self else { return }
             
