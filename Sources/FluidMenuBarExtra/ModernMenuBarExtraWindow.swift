@@ -118,7 +118,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
       //  isReleasedWhenClosed = true
         isMovableByWindowBackground = false
         isFloatingPanel = true
-        level = .statusBar
+        level = .modalPanel
         isOpaque = false
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
@@ -126,7 +126,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         
         
         if #available(macOS 13.0, *) {
-            collectionBehavior = [.auxiliary, .stationary, .moveToActiveSpace, .fullScreenAuxiliary, .transient]
+            collectionBehavior = [.fullScreenAllowsTiling, .fullScreenPrimary, .auxiliary, .ignoresCycle, .stationary]
         } else {
             collectionBehavior = [.stationary, .moveToActiveSpace, .fullScreenAuxiliary]
         }

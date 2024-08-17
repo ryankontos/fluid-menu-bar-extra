@@ -48,8 +48,13 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     
     public init(itemsProvider: MenuSelectableItemsProvider) {
         self.itemsProvider = itemsProvider
-        self.latestItems = itemsProvider.getItems()
+       
+       
         self.logger = Logger(subsystem: "com.ryankontos.fluid-menu-bar-extra", category: "WindowSelectionManager-\(UUID().uuidString)")
+        
+        Task {
+            self.latestItems = await itemsProvider.getItems()
+        }
     }
     
     /// Called when the state of a user hovering over a subwindow changes.
@@ -214,6 +219,7 @@ public enum OptionsSectionButton: String, CaseIterable {
     case settings, quit
 }
 
+@MainActor
 public protocol MenuSelectableItemsProvider {
     
     func getItems() -> [String]
