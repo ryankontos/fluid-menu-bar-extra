@@ -219,7 +219,6 @@ public enum OptionsSectionButton: String, CaseIterable {
     case settings, quit
 }
 
-@MainActor
 public protocol MenuSelectableItemsProvider {
     
     func getItems() -> [String]

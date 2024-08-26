@@ -19,10 +19,8 @@ let package = Package(
     targets: [
         .target(
             name: "FluidMenuBarExtra",
-            dependencies: [],
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency")
-              ]
+            dependencies: []
+            
         )
     ]
 )
