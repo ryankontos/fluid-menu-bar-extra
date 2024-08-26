@@ -270,7 +270,6 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     public func closeSubwindow(notify: Bool = true) {
 
 
-        
         let id = subwindowID
         openSubwindowWorkItem?.cancel()
         

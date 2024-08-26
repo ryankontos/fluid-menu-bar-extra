@@ -13,7 +13,10 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     
     @Published public var menuSelection: String? {
         didSet {
+            
+            
             handleSelectionChange(oldValue: oldValue, newValue: menuSelection)
+            
         }
     }
     
@@ -52,16 +55,19 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
        
         self.logger = Logger(subsystem: "com.ryankontos.fluid-menu-bar-extra", category: "WindowSelectionManager-\(UUID().uuidString)")
         
-        Task {
-            self.latestItems = await itemsProvider.getItems()
-        }
+        
+            self.latestItems = itemsProvider.getItems()
+        
     }
     
     /// Called when the state of a user hovering over a subwindow changes.
     
+    
     public func setWindowHovering(_ hovering: Bool, id: String?) {
         
        // logger.debug("Set window hovering: \(hovering), id: \(id ?? "nil")")
+        
+    
         
         selectFromHoverWorkItem?.cancel()
         setHoverWorkItem?.cancel()
@@ -201,17 +207,19 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     private func handleSelectionChange(oldValue: String?, newValue: String?) {
         
         
-        
-        submenuManager?.window?.closeSubwindow(notify: false) // Do not notify self (Because we already know!)
-        
-        
-        if let newValue = newValue {
-            submenuManager?.window?.openSubWindow(id: newValue)
-        }
-   
-        if lastSelectWasByKey {
-            scrollProxy?.scrollTo(newValue, anchor: .bottom)
-        }
+             
+              submenuManager?.window?.closeSubwindow(notify: false) // Do not notify self (Because we already know!)
+             
+             
+             if let newValue = newValue {
+                  submenuManager?.window?.openSubWindow(id: newValue)
+             }
+             
+             if lastSelectWasByKey {
+                 scrollProxy?.scrollTo(newValue, anchor: .bottom)
+             }
+             
+         
     }
 }
 
@@ -219,7 +227,6 @@ public enum OptionsSectionButton: String, CaseIterable {
     case settings, quit
 }
 
-@MainActor
 public protocol MenuSelectableItemsProvider {
     
     func getItems() -> [String]
