@@ -11,6 +11,12 @@ import SwiftUI
 import Combine
 
 /// An individual element displayed in the system menu bar that displays a window when triggered.
+///
+///
+///
+///
+
+@MainActor
 public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, ObservableObject {
 
     private var mainWindow: ModernMenuBarExtraWindow?

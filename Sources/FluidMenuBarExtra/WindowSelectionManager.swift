@@ -52,9 +52,8 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
        
         self.logger = Logger(subsystem: "com.ryankontos.fluid-menu-bar-extra", category: "WindowSelectionManager-\(UUID().uuidString)")
         
-        Task {
-            self.latestItems = await itemsProvider.getItems()
-        }
+        self.latestItems = itemsProvider.getItems()
+        
     }
     
     /// Called when the state of a user hovering over a subwindow changes.
@@ -120,6 +119,8 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
             
             guard let self else { return }
           
+            if self.latestMenuHoverId != idToSelect { return }
+            
             latestHoverDate = Date()
             if let latestKeyDate = latestKeyDate, Date().timeIntervalSince(latestKeyDate) < 0.5 { return }
             
@@ -202,15 +203,19 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
         
         
         
-        submenuManager?.window?.closeSubwindow(notify: false) // Do not notify self (Because we already know!)
-        
-        
-        if let newValue = newValue {
-            submenuManager?.window?.openSubWindow(id: newValue)
-        }
-   
-        if lastSelectWasByKey {
-            scrollProxy?.scrollTo(newValue, anchor: .bottom)
+        DispatchQueue.main.async { [self] in
+            
+            submenuManager?.window?.closeSubwindow(notify: false) // Do not notify self (Because we already know!)
+            
+            
+            if let newValue = newValue {
+                submenuManager?.window?.openSubWindow(id: newValue)
+            }
+            
+            if lastSelectWasByKey {
+                scrollProxy?.scrollTo(newValue, anchor: .bottom)
+            }
+            
         }
     }
 }
