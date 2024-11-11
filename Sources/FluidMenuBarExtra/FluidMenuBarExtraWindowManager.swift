@@ -16,7 +16,6 @@ import Combine
 ///
 ///
 
-@MainActor
 public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, ObservableObject {
 
     private var mainWindow: ModernMenuBarExtraWindow?
@@ -228,6 +227,7 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
 
     private func dismissWindows() {
         
+       
         guard let mainWindow else { return }
         
         mainWindowVisible = false

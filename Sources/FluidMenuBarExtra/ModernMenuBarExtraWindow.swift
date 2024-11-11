@@ -261,6 +261,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     override public func close() {
+       
         closeSubwindow()
         subwindowViews.removeAll()
         subwindowPositions.removeAll()

@@ -40,7 +40,13 @@ struct RootViewModifier: ViewModifier {
                             updateSize?(size: geometry.size)
                         }
                         .onChange(of: geometry.size) { newValue in
-                            updateSize?(size: geometry.size)
+                            
+                            print("OC 1")
+                            
+                            DispatchQueue.main.async {
+                                updateSize?(size: geometry.size)
+                            }
+                           
                         }
                 }
             )
