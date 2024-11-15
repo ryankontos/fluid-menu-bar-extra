@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import os.log
 
+
 public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager {
     
     @Published public var menuSelection: String? {
@@ -79,7 +80,8 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
             
             
             if hovering {
-                selectID(id)
+                menuSelection = id
+               // selectID(id)
             } else if menuSelection == id {
                 menuSelection = nil
                 selectID(latestMenuHoverId)

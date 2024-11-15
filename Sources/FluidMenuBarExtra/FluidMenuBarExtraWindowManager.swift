@@ -33,6 +33,8 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
     private let mouseQueue = DispatchQueue(label: "com.ryankontos.fluidmenubarextra.mouseQueue")
     public let speedCalculator = MouseSpeedCalculator()
     
+    var detachedWindows = [ModernMenuBarExtraWindow]()
+    
     let windowQueue = DispatchQueue(label: "FluidMenuBarExtraWindowManager.WindowQueue")
     
     private var hideStatusItemPending = false
@@ -161,10 +163,7 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
                 setButtonHighlighted(to: true)
                 createMainWindow()
                 
-              
-               
-                
-                // setWindowPosition(mainWindow!)
+       
              
             }
             
@@ -216,10 +215,11 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
             if window == self?.mainWindow {
                 
                 DispatchQueue.main.async {
-                   
+                    
                     self?.setButtonHighlighted(to: false)
-                    self?.mainWindow = nil
+                   // self?.mainWindow = nil
                     DistributedNotificationCenter.default().post(name: .endMenuTracking, object: nil)
+                    
                 }
             }
         }
@@ -345,6 +345,41 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
         globalEventMonitor?.start()
         mouseMonitor?.start()
     }
+    
+    public func windowDidMove(_ notification: Notification) {
+        
+        
+        guard let window = notification.object as? ModernMenuBarExtraWindow else { return }
+        
+        if window.setPosition, !window.isDetached {
+            if window.isSubwindow {
+                
+                window.isDetached = true
+                window.currentHoverId = nil
+               
+                window.hoverManager = nil
+                
+                detachedWindows.append(window)
+                
+                if let parent = window.parent as? ModernMenuBarExtraWindow {
+                    parent.removeChildWindow(window)
+                    window.parent = nil
+                    parent.hoverManager?.setWindowHovering(false, id: nil)
+                    parent.subWindow = nil
+                }
+                
+               
+                dismissWindows()
+            }
+            
+        }
+        
+       
+    }
+        
+        
+        
+    
 }
 
 public extension Notification.Name {

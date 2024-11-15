@@ -26,10 +26,13 @@ struct RootViewModifier: ViewModifier {
 
     @ObservedObject var keyObserver = WindowKeyStateObserver()
     
+    let resizeMode: ResizeMode
+    
     let windowTitle: String
 
     func body(content: Content) -> some View {
         content
+        
             .environment(\.scenePhase, scenePhase)
             .environmentObject(keyObserver)
             .edgesIgnoringSafeArea(.all)
@@ -41,7 +44,7 @@ struct RootViewModifier: ViewModifier {
                         }
                         .onChange(of: geometry.size) { newValue in
                             
-                            print("OC 1")
+                           
                             
                             DispatchQueue.main.async {
                                 updateSize?(size: geometry.size)
@@ -50,8 +53,9 @@ struct RootViewModifier: ViewModifier {
                         }
                 }
             )
+            .modifier(SizeAdjustmentModifier(mode: resizeMode))
             .fixedSize()
-            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
+            //.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .top)
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
                 guard let window = notification.object as? NSWindow, window.title == windowTitle, scenePhase != .active else {
                     return

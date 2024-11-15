@@ -5,7 +5,6 @@
 //  Created by Lukas Romsicki on 2022-12-16.
 //  Copyright © 2022 Lukas Romsicki.
 //
-
 import AppKit
 import SwiftUI
 import Combine
@@ -19,6 +18,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     // MARK: - Properties
     
     let logger: Logger
+    private var isDragging = false
     
     public var subWindow: ModernMenuBarExtraWindow?
     public var currentHoverId: String?
@@ -40,6 +40,10 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     public let isSubwindow: Bool
     @Published var mouseHovering = false
     
+    public var resizeMode: ResizeMode = .windowDriven
+    public var setPosition = false
+    public var isResized = false
+    
     public weak var windowManager: FluidMenuBarExtraWindowManager?
     
     var resize = true {
@@ -53,6 +57,19 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     var isSecondary = false {
         didSet {
             self.level = isSecondary ? .popUpMenu : .normal
+        }
+    }
+    
+    var isDetached = false {
+        didSet {
+            // When entering detached mode
+            if isDetached {
+                self.showCloseButton()
+                animateToLargeSize()
+                hoverManager = nil
+                playHapticFeedbackOnDetached()
+                proxy.isAttached = false
+            }
         }
     }
     
@@ -72,7 +89,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         AnyView(
             content()
                 .environmentObject(self.proxy)
-                .modifier(RootViewModifier(windowTitle: title))
+                .modifier(RootViewModifier(resizeMode: resizeMode, windowTitle: title))
                 .onSizeUpdate { [weak self] size in
                     self?.latestCGSize = size
                     if self?.resize ?? true {
@@ -99,9 +116,9 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
             defer: false
         )
         
-       
         self.proxy?.window = self
         
+        self.isReleasedWhenClosed = false
         self.title = title
         self.delegate = self
         configureWindow()
@@ -113,16 +130,18 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     // MARK: - Setup Methods
     
+    
+    
     private func configureWindow() {
         isMovable = false
-      //  isReleasedWhenClosed = true
         isMovableByWindowBackground = false
-        isFloatingPanel = true
+        //isFloatingPanel = true
         level = .modalPanel
         isOpaque = false
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
         animationBehavior = .none
+        
         
         
         if #available(macOS 13.0, *) {
@@ -131,9 +150,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
             collectionBehavior = [.stationary, .moveToActiveSpace, .fullScreenAuxiliary]
         }
         
-        //isReleasedWhenClosed = true
         hidesOnDeactivate = false
-        
         standardWindowButton(.closeButton)?.isHidden = true
         standardWindowButton(.miniaturizeButton)?.isHidden = true
         standardWindowButton(.zoomButton)?.isHidden = true
@@ -181,54 +198,45 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     public func contentSizeDidUpdate(to size: CGSize) {
         var nextFrame = frame
-        let previousContentSize = contentRect(forFrameRect: frame).size
         
-        let deltaX = size.width - previousContentSize.width
-        let deltaY = size.height - previousContentSize.height
-        
-        nextFrame.origin.y -= deltaY
-        nextFrame.size.width += deltaX
-        nextFrame.size.height += deltaY
-        
-        guard frame != nextFrame else {
-            return
+        if !isDetached {
+            let previousContentSize = contentRect(forFrameRect: frame).size
+            let deltaX = size.width - previousContentSize.width
+            let deltaY = size.height - previousContentSize.height
+            
+            nextFrame.origin.y -= deltaY
+            nextFrame.size.width += deltaX
+            nextFrame.size.height += deltaY
+            
+            guard frame != nextFrame else { return }
         }
         
         DispatchQueue.main.async { [weak self] in
             self?.setFrame(nextFrame, display: true, animate: false)
+            self?.setPosition = true
         }
     }
     
     // MARK: - Subwindow Management
     
     public func openSubWindow(id: String) {
-        
-       // logger.debug("Open subwindow with id \(id)")
-        
-        if let subWindow = self.subWindow {
-            if subWindow.isVisible && subWindow.title == id {
-                return
-            }
+        if let subWindow = self.subWindow, subWindow.isVisible && subWindow.title == id {
+            return
         }
         
         closeSubwindowWorkItem?.cancel()
         openSubwindowWorkItem?.cancel()
         
-        
-        
         var possibleItem: DispatchWorkItem?
         let item = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
-            guard let view = self.subwindowViews[id], let pos = self.subwindowPositions[id] else { return }
+            guard let self = self, let view = self.subwindowViews[id], let pos = self.subwindowPositions[id] else { return }
             if let possibleItem = possibleItem, possibleItem.isCancelled { return }
             
             self.latestSubwindowPoint = pos
             self.subWindow?.close()
             
-            self.subWindow = nil
-                self.subWindow = ModernMenuBarExtraWindow(title: id, isSubWindow: true, content: { AnyView(view) })
-                self.addChildWindow(self.subWindow!, ordered: .above)
-            
+            self.subWindow = ModernMenuBarExtraWindow(title: id, isSubWindow: true, content: { AnyView(view) })
+            self.addChildWindow(self.subWindow!, ordered: .above)
             
             self.subWindow?.isReleasedWhenClosed = false
             self.subWindow?.delegate = self.delegate
@@ -261,7 +269,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     override public func close() {
-       
+        guard !isDetached else { return }
         closeSubwindow()
         subwindowViews.removeAll()
         subwindowPositions.removeAll()
@@ -269,15 +277,11 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     public func closeSubwindow(notify: Bool = true) {
-
-
-        
+        guard !isDetached else { return }
         let id = subwindowID
         openSubwindowWorkItem?.cancel()
         
         let item = DispatchWorkItem { [weak self] in
-           
-
             if id != self?.subwindowID { return }
             if !(self?.subwindowHovering ?? false) {
                 if notify {
@@ -297,11 +301,13 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     func mouseMoved(to cursorPosition: NSPoint) {
         
+        guard !isDetached else { return }
+        
         hoverManager?.mouseMoved(point: cursorPosition)
         
         let cursorInSelf = self.isMouseInside(mouseLocation: cursorPosition, tolerance: 2)
         
-        if (cursorInSelf) {
+        if cursorInSelf {
             activateWindow()
         }
         
@@ -312,11 +318,11 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
                 closeSubwindowWorkItem?.cancel()
             }
         }
+        
         subWindow?.mouseMoved(to: cursorPosition)
     }
     
     func setForceHover(_ force: Bool) {
-       // logger.debug("Set force hover")
         hoverManager?.setWindowHovering(force, id: currentHoverId)
     }
     
@@ -327,11 +333,12 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         return self.isKeyWindow && self.isVisible
     }
     
+    public func windowWillClose(_ notification: Notification) {}
     
-    public func windowWillClose(_ notification: Notification) {
-       
-    }
     func isCursorInSelfOrSubwindows(cursorPosition: NSPoint) -> Bool {
+        
+        if isDetached { return true }
+        
         if isMouseInside(mouseLocation: cursorPosition, tolerance: 0) {
             activateWindow()
             return true
@@ -344,14 +351,11 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     func getSelfAndSubwindows() -> [ModernMenuBarExtraWindow] {
         var result = [self]
-        
         var current: ModernMenuBarExtraWindow? = self
-        
         while let nextWindow = current, let subwindow = nextWindow.subWindow {
             result.append(subwindow)
             current = subwindow
         }
-        
         return result
     }
     
@@ -363,15 +367,97 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         }
     }
     
+    private func showCloseButton() {
+        
+        print("Showing close button")
+        
+        NSApp.activate(ignoringOtherApps: true)
+        
+        self.styleMask.insert([.titled, .resizable, .closable, .miniaturizable])
+        self.styleMask.remove([.utilityWindow, .nonactivatingPanel, .fullSizeContentView])
+        
+        
+        self.hidesOnDeactivate = false
+        
+       // self.isFloatingPanel = false
+        titleVisibility = .visible
+        standardWindowButton(.closeButton)?.isHidden = false
+        standardWindowButton(.miniaturizeButton)?.isHidden = false
+
+        self.level = .normal
+        
+       
+        self.makeKeyAndOrderFront(self)
+        self.makeFirstResponder(self)
+        
+        resizeMode = .windowDriven
+        
+        
+        self.delegate = nil
+       
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    
+   
+    
+    private func playHapticFeedbackOnDetached() {
+        let generator = NSHapticFeedbackManager.defaultPerformer
+        generator.perform(.alignment, performanceTime: .default)
+    }
+    
+    private func animateToLargeSize() {
+        guard !isResized else { return }
+        guard isDetached else { return }
+        guard !isDragging else { return }
+        
+        isResized = true
+        let targetSize = CGSize(width: 620, height: 370)
+        let animationDuration: TimeInterval = 0.3
+        
+        guard frame.size != targetSize else { return }
+        
+        var newFrame = frame
+        newFrame.size = targetSize
+        newFrame.origin.y -= targetSize.height - frame.height
+        
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = animationDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            animator().setFrame(newFrame, display: true)
+        }
+    }
+    
     deinit {
-
         self.proxy = nil
-
+    }
+    
+    override public func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        isDragging = true
+    }
+    
+    override public func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+        isDragging = false
+        animateToLargeSize()
     }
 }
 
 public class FMBEWindowProxy: ObservableObject {
-    
+    @Published public var isAttached = true
     weak public var window: ModernMenuBarExtraWindow?
+}
+
+public enum ResizeMode {
+    case contentDriven // Window resizes to match the SwiftUI content
+    case windowDriven  // SwiftUI content fits within the window
+}
+
+public class MainableNSPanel: NSPanel {
+    
+    override public var canBecomeMain: Bool {
+        return true
+        
+    }
     
 }
