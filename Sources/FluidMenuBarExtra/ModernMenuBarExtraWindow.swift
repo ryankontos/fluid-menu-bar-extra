@@ -89,7 +89,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         AnyView(
             content()
                 .environmentObject(self.proxy)
-                .modifier(RootViewModifier(resizeMode: resizeMode, windowTitle: title))
+                .modifier(RootViewModifier(windowTitle: title))
                 .onSizeUpdate { [weak self] size in
                     self?.latestCGSize = size
                     if self?.resize ?? true {
@@ -209,18 +209,29 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
             nextFrame.size.height += deltaY
             
             guard frame != nextFrame else { return }
+            
+            
+            
         }
         
         DispatchQueue.main.async { [weak self] in
-            self?.setFrame(nextFrame, display: true, animate: false)
+            self?.setFrame(nextFrame, display: false, animate: false)
             self?.setPosition = true
         }
+            
+           
+            
+        
     }
     
     // MARK: - Subwindow Management
     
     public func openSubWindow(id: String) {
+        
+       
+        
         if let subWindow = self.subWindow, subWindow.isVisible && subWindow.title == id {
+            //print("Subwindow already open")
             return
         }
         
@@ -229,8 +240,17 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
         
         var possibleItem: DispatchWorkItem?
         let item = DispatchWorkItem { [weak self] in
-            guard let self = self, let view = self.subwindowViews[id], let pos = self.subwindowPositions[id] else { return }
-            if let possibleItem = possibleItem, possibleItem.isCancelled { return }
+            
+            //print("Opening subwindow")
+            
+            guard let self = self, let view = self.subwindowViews[id], let pos = self.subwindowPositions[id] else {
+                
+                //print("Failed to open subwindow")
+                return }
+            if let possibleItem = possibleItem, possibleItem.isCancelled {
+                
+                //print("Cancelled")
+                return }
             
             self.latestSubwindowPoint = pos
             self.subWindow?.close()
@@ -263,9 +283,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     public func registerSubwindowButtonPosition(point: CGPoint, for id: String) {
         subwindowPositions[id] = point
         
-        if id == currentHoverId {
-            self.closeSubwindow()
-        }
+        
     }
     
     override public func close() {
@@ -277,8 +295,14 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     }
     
     public func closeSubwindow(notify: Bool = true) {
+        
+       // //print("Closing subwindow")
+        
+        
+        
         guard !isDetached else { return }
         let id = subwindowID
+       
         openSubwindowWorkItem?.cancel()
         
         let item = DispatchWorkItem { [weak self] in
@@ -369,7 +393,7 @@ public class ModernMenuBarExtraWindow: NSPanel, NSWindowDelegate, ObservableObje
     
     private func showCloseButton() {
         
-        print("Showing close button")
+        //print("Showing close button")
         
         NSApp.activate(ignoringOtherApps: true)
         

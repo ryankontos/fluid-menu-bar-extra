@@ -10,6 +10,7 @@ import SwiftUI
 import os.log
 
 
+@MainActor
 public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager {
     
     @Published public var menuSelection: String? {
@@ -17,6 +18,8 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
             handleSelectionChange(oldValue: oldValue, newValue: menuSelection)
         }
     }
+    
+    var locked = false
     
     @Published var scrollPosition: CGPoint = .zero
     
@@ -56,8 +59,21 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
         self.latestItems = itemsProvider.getItems()
         
     }
+  
+    
+    public func setScrollLock(_ locked: Bool) {
+        
+        self.locked = locked
+        
+        if !locked {
+            selectFromHoverWorkItem?.perform()
+        } else {
+            setMenuItemHovering(id: nil, hovering: false)
+        }
+    }
     
     /// Called when the state of a user hovering over a subwindow changes.
+  
     
     public func setWindowHovering(_ hovering: Bool, id: String?) {
         
@@ -96,9 +112,7 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
     
     public func setMenuItemHovering(id: String?, hovering: Bool) {
         
-       // logger.debug("Set menu item hovering: \(hovering), id: \(id ?? "nil")")
-        
-        
+       
         if id == nil && actualWindowHoverID != nil {
             return
         }
@@ -124,16 +138,8 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
             if self.latestMenuHoverId != idToSelect { return }
             
             latestHoverDate = Date()
-            if let latestKeyDate = latestKeyDate, Date().timeIntervalSince(latestKeyDate) < 0.5 { return }
-            
-            lastSelectWasByKey = false
-            
-            
-            
-            //logger.debug("Menu selection is: \(menuSelection ?? "nil"), idToSelect is: \(idToSelect ?? "nil")")
-            
+          
             if menuSelection != idToSelect {
-                
                 menuSelection = idToSelect
             }
         }
@@ -147,9 +153,16 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
                 return prev == nil ? 0 : 0
             }
         }()
-        
         selectFromHoverWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+        
+        
+        if !locked || idToSelect == nil {
+            
+            
+           
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+            
+        }
     }
     
     public func mouseMoved(point: NSPoint) {
@@ -167,55 +180,16 @@ public class WindowSelectionManager: ObservableObject, SubWindowSelectionManager
         clickID = menuSelection
     }
     
-    public func selectNextItem() {
-        guard let currentID = menuSelection else {
-            menuSelection = latestItems.first
-            return
-        }
-        
-        let ids = latestItems
-        if let currentIndex = ids.firstIndex(of: currentID), currentIndex + 1 < ids.count {
-            menuSelection = ids[currentIndex + 1]
-        }
-        
-        lastSelectWasByKey = true
-        latestKeyDate = Date()
-    }
-    
-    
-    
-   public func selectPreviousItem() {
-        guard let currentID = menuSelection else {
-            menuSelection = latestItems.last
-            return
-        }
-        
-        let ids = latestItems
-        if let currentIndex = ids.firstIndex(of: currentID), currentIndex > 0 {
-            menuSelection = ids[currentIndex - 1]
-        }
-        
-        lastSelectWasByKey = true
-        latestKeyDate = Date()
-    }
-    
-    
-    
     private func handleSelectionChange(oldValue: String?, newValue: String?) {
-        
-        
         
         DispatchQueue.main.async { [self] in
             
-            submenuManager?.window?.closeSubwindow(notify: false) // Do not notify self (Because we already know!)
+          //  //print("Selection changed, old: \(oldValue ?? "nil"), new: \(newValue ?? "nil")")
             
+            submenuManager?.window?.closeSubwindow(notify: false)
             
             if let newValue = newValue {
                 submenuManager?.window?.openSubWindow(id: newValue)
-            }
-            
-            if lastSelectWasByKey {
-                scrollProxy?.scrollTo(newValue, anchor: .bottom)
             }
             
         }
@@ -226,6 +200,7 @@ public enum OptionsSectionButton: String, CaseIterable {
     case settings, quit
 }
 
+@MainActor
 public protocol MenuSelectableItemsProvider {
     
     func getItems() -> [String]

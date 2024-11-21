@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "FluidMenuBarExtra",
-    platforms: [.macOS(.v12)],
+    platforms: [.macOS(.v14)],
     products: [
         .library(
             name: "FluidMenuBarExtra",
