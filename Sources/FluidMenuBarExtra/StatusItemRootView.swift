@@ -13,7 +13,10 @@ public struct StatusItemRootView: View {
     var mainContent: () -> AnyView
 
     public var body: some View {
-        mainContent()
+        
+            mainContent()
+        
+            
             .padding(.horizontal, 7)
             .overlay(
                 GeometryReader { geometryProxy in

@@ -58,10 +58,21 @@ public class FluidMenuBarExtraWindowManager: NSObject, NSWindowDelegate, Observa
         let siHostingView = NSHostingView(rootView: StatusItemRootView(sizePassthrough: sizePassthrough, mainContent: {
             statusItemContent()
         }))
-        siHostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 24)
-        statusItem.button?.frame = siHostingView.frame
+
         statusItem.button?.addSubview(siHostingView)
 
+        siHostingView.translatesAutoresizingMaskIntoConstraints = false
+        if let button = statusItem.button {
+            NSLayoutConstraint.activate([
+                siHostingView.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+                siHostingView.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+                siHostingView.leadingAnchor.constraint(equalTo: button.leadingAnchor), // Match the button's width
+                siHostingView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+                siHostingView.topAnchor.constraint(equalTo: button.topAnchor),         // Match the button's height
+                siHostingView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
+            ])
+        }
+        
         self.statusItem = statusItem
         self.statusItemHostingView = siHostingView
 
