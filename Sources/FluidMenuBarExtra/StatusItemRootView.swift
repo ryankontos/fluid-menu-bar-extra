@@ -15,9 +15,8 @@ public struct StatusItemRootView: View {
     public var body: some View {
         
             mainContent()
-        
-            
             .padding(.horizontal, 7)
+            .padding(.vertical, 3)
             .overlay(
                 GeometryReader { geometryProxy in
                     Color.clear
